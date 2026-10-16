@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>饮食计算器 · MealCalc</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M7 14l4-4 4 4 5-5'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #fafafa;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --carbs: #2563eb;
+    --protein: #059669;
+    --fat: #d97706;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px; line-height: 1.6; min-height: 100vh;
+    padding: 24px 16px 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+
+  /* ===== 头部 ===== */
+  header { margin-bottom: 28px; }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.2px; }
+  header p { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
+
+  /* ===== 主体两栏 ===== */
+  .grid {
+    display: grid; grid-template-columns: 1fr; gap: 20px;
+  }
+  @media (min-width: 720px) {
+    .grid { grid-template-columns: 380px 1fr; align-items: start; }
+  }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .card + .card { margin-top: 16px; }
+  .card h2 {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;
+  }
+
+  /* ===== 输入 ===== */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;
+  }
+  .field label .unit { color: var(--text-muted); font-size: 12px; }
+  .input-row { display: flex; gap: 8px; align-items: center; }
+  input[type="number"], select {
+    width: 100%; padding: 10px 12px; font-size: 16px;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    background: #fff; color: var(--text); font-family: inherit;
+    transition: border-color .15s;
+  }
+  input[type="number"]:focus, select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+  /* toggle 组 */
+  .segmented {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    background: var(--bg); padding: 4px; border-radius: 6px; border: 1px solid var(--border);
+  }
+  .segmented button {
+    padding: 8px; font-size: 14px; border: none; background: transparent;
+    color: var(--text-secondary); border-radius: 4px; cursor: pointer;
+    font-family: inherit; transition: all .15s;
+  }
+  .segmented button.active {
+    background: #fff; color: var(--text); font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  /* 开关 */
+  .switch-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  .switch-row:first-of-type { border-top: none; }
+  .switch-row .meta strong { display: block; font-size: 14px; font-weight: 500; }
+  .switch-row .meta span { font-size: 12px; color: var(--text-muted); }
+  .switch {
+    position: relative; width: 38px; height: 22px; flex-shrink: 0;
+    background: var(--border-strong); border-radius: 999px; cursor: pointer;
+    transition: background .15s;
+  }
+  .switch::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; background: #fff; border-radius: 50%;
+    transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .switch.on { background: var(--accent); }
+  .switch.on::after { transform: translateX(16px); }
+
+  /* ===== 结果 ===== */
+  .macro-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 480px) {
+    .macro-grid { grid-template-columns: 1fr; }
+  }
+  .macro {
+    padding: 14px; border: 1px solid var(--border); border-radius: 6px;
+  }
+  .macro .label {
+    font-size: 12px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .macro .value {
+    font-size: 28px; font-weight: 600; margin-top: 4px;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
+  }
+  .macro .value .u { font-size: 13px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+  .macro.carbs .dot { background: var(--carbs); }
+  .macro.protein .dot { background: var(--protein); }
+  .macro.fat .dot { background: var(--fat); }
+
+  .calories {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 14px 16px; background: var(--accent-soft);
+    border-radius: 6px; margin-bottom: 16px;
+  }
+  .calories .label { font-size: 13px; color: var(--text-secondary); }
+  .calories .value {
+    font-size: 24px; font-weight: 600; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .calories .value .u { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-left: 4px; }
+
+  #chart { width: 100%; height: 220px; margin-bottom: 8px; }
+
+  .meal-plan {
+    padding: 14px; background: var(--bg); border-radius: 6px;
+    font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+  }
+  .meal-plan strong { color: var(--text); }
+
+  /* 分餐条 */
+  .split-bars { margin-top: 12px; display: grid; gap: 8px; }
+  .split-row { display: grid; grid-template-columns: 80px 1fr 50px; gap: 10px; align-items: center; font-size: 12px; }
+  .split-row .name { color: var(--text-secondary); }
+  .split-row .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .split-row .bar > div { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
+  .split-row .pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+
+  footer {
+    margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-muted); line-height: 1.7;
+  }
+  footer a { color: var(--text-secondary); text-decoration: none; }
+
+  .warn {
+    padding: 10px 12px; background: #fef3c7; border: 1px solid #fde68a;
+    border-radius: 6px; font-size: 13px; color: #92400e; margin-bottom: 12px;
+    display: none;
+  }
+  .warn.show { display: block; }
+
+  /* ===== FAQ 折叠面板 ===== */
+  .faq { margin-top: 20px; }
+  .faq-group { margin-bottom: 20px; }
+  .faq-group h3 {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+  }
+  details {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; margin-bottom: 6px; overflow: hidden;
+  }
+  details summary {
+    padding: 12px 16px; cursor: pointer; list-style: none;
+    font-size: 14px; font-weight: 500; color: var(--text);
+    display: flex; justify-content: space-between; align-items: center;
+    transition: background .15s;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after {
+    content: '+'; font-size: 18px; color: var(--text-muted); font-weight: 300;
+  }
+  details[open] summary::after { content: '−'; }
+  details summary:hover { background: var(--bg); }
+  details .answer {
+    padding: 0 16px 16px; font-size: 14px; color: #374151; line-height: 1.75;
+    border-top: 1px solid var(--border); padding-top: 12px;
+  }
+  details .answer p { margin-bottom: 10px; }
+  details .answer p:last-child { margin-bottom: 0; }
+  details .answer ul, details .answer ol { margin: 8px 0 10px 20px; }
+  details .answer li { margin-bottom: 4px; }
+  details .answer strong { color: var(--text); }
+  details .answer table {
+    width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;
+  }
+  details .answer th, details .answer td {
+    border: 1px solid var(--border); padding: 6px 10px; text-align: left;
+    vertical-align: top;
+  }
+  details .answer th { background: var(--bg); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>饮食计算器</h1>
+    <p>根据身高、体重与训练状态，估算每日碳水、蛋白质与脂肪摄入。数据仅供参考。</p>
+  </header>
+
+  <div class="grid">
+    <!-- ===== 左：输入 ===== -->
+    <div>
+      <div class="card">
+        <h2>身体数据</h2>
+
+        <div class="field">
+          <label>身高 <span class="unit">cm</span></label>
+          <input type="number" id="height" value="175" min="150" max="210" step="1">
+        </div>
+
+        <div class="field">
+          <label>体重 <span class="unit">kg</span></label>
+          <input type="number" id="weight" value="80" min="40" max="200" step="0.5">
+        </div>
+
+        <div class="field">
+          <label>训练日类型</label>
+          <div class="segmented" id="dayType">
+            <button data-value="training" class="active">力训日</button>
+            <button data-value="rest">休息日</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:0">
+          <label>脂肪系数 <span class="unit">g/kg 体重</span></label>
+          <input type="number" id="fatPerKg" value="0.8" min="0.3" max="2" step="0.1">
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>调整因素</h2>
+        <div class="switch-row">
+          <div class="meta">
+            <strong>肌肉量不错</strong>
+            <span>碳水 +5%，蛋白质 +20%</span>
+          </div>
+          <div class="switch" id="muscleMass"></div>
+        </div>
+        <div class="switch-row">
+          <div class="meta">
+            <strong>每周 ≥ 3 小时有氧</strong>
+            <span>碳水 +20%</span>
+          </div>
+          <div class="switch" id="cardio"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 右：结果 ===== -->
+    <div>
+      <div class="card">
+        <h2>每日目标</h2>
+        <div class="warn" id="warn"></div>
+
+        <div class="macro-grid">
+          <div class="macro carbs">
+            <div class="label"><span class="dot"></span>碳水化合物</div>
+            <div class="value"><span id="carbs">—</span><span class="u">g</span></div>
+          </div>
+          <div class="macro protein">
+            <div class="label"><span class="dot"></span>蛋白质</div>
+            <div class="value"><span id="protein">—</span><span class="u">g</span></div>
+          </div>
+          <div class="macro fat">
+            <div class="label"><span class="dot"></span>脂肪</div>
+            <div class="value"><span id="fat">—</span><span class="u">g</span></div>
+          </div>
+        </div>
+
+        <div class="calories">
+          <div class="label">估算总热量</div>
+          <div class="value"><span id="calories">—</span><span class="u">kcal</span></div>
+        </div>
+
+        <div id="chart"></div>
+
+        <div class="meal-plan" id="mealPlan">
+          填写左侧数据后自动计算。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 常见问题 ===== -->
+  <section class="faq">
+    <h2 class="card-title" style="border-bottom:none; margin-bottom:16px;">
+      常见问题
+    </h2>
+
+    <div class="faq-group">
+      <h3>饮食答疑</h3>
+
+      <details>
+        <summary>1. 减脂试吃 2 周体重不掉怎么办？</summary>
+        <div class="answer">
+          <p>减脂期按 2 周比较体重变化（至少 1 周），让脂肪分解量积累出来。up 主给的减脂配额已经压得很低，体重 2 周不掉，首先要怀疑的不是配额太高，而是配额执行的问题。常见原因：</p>
+          <ul>
+            <li><strong>脂肪摄入不足</strong>：追求"干净饮食"导致脂肪不够，反而无法减脂。详见问答 3。</li>
+            <li><strong>经常在外就餐</strong>：新手每周外食 2 顿就有危险，除非能严格不吃五花肉、糖油混合物。</li>
+            <li><strong>喝酒</strong>：酒精 7 kcal/g，半斤白酒≈220g 碳水，5 瓶啤酒≈280g 碳水。</li>
+            <li><strong>额外少吃多动</strong>：偷偷减摄入或加有氧，会损伤基础代谢。</li>
+            <li><strong>换主食但算不准</strong>：偏门食物碳水率查错，导致碳水总量吃错。详见问答 6。</li>
+            <li><strong>把有氧当力训</strong>：一口气 5–10 分钟不用休息的跟练不是力量训练，不应用力训日配额。</li>
+            <li><strong>睡眠不足</strong>：减脂期至少睡 6 小时，理想 7 小时。</li>
+          </ul>
+          <p>排除以上后，若确实是热量缺口不足：每日碳水减少 30–50g，或每周增加 3 小时有氧，再观察 2 周。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>2. 增肌试吃 2 周体重不增怎么办？</summary>
+        <div class="answer">
+          <p>肌肉合成速度远慢于脂肪分解，平均每天长 10g 肌肉已经很强，2 周最多 140g，会被食物和水分波动掩盖。增肌体重 2 周增加 0–2 斤都算可接受。</p>
+          <p><strong>体重 1–2 个月毫无变化</strong>：说明处于热量平衡。加热量——不做有氧（爱好性的打球游泳除外），各餐主食增加 1/5，脂肪增加 20g（鸡蛋、牛奶、坚果），相当于每天 +300 kcal。还不长就继续各餐主食再加 1/5。</p>
+          <p><strong>2 周增加 2 斤以上</strong>：增脂过多。减热量——各餐主食减少 1/5，停掉每天 30g 坚果配额，相当于每天 −300 kcal。还长得快就继续减主食 1/5。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>3. 减脂期哪些情况会脂肪摄入不足？</summary>
+        <div class="answer">
+          <p>脂肪需求：<strong>0.8 g/kg 体重</strong>，大体重可略低、小体重可略高。绝对量男性 50–70g、女性 40–60g。低于下限反而无法减脂。</p>
+          <p>默认不吃：五花肉（禽肉皮、红烧肉、雪花肉、午餐肉）、糖油混合物（饼干、蛋糕、油条、煎饼、高脂面包、膨化食品）、吸油菜（炒鸡蛋、炒茄子、炒菜花）。</p>
+          <p><strong>三种饮食模式</strong>：</p>
+          <ul>
+            <li><strong>a. 标准模式</strong>：正餐吃大众带油菜品（黄焖鸡、酸菜鱼、鱼香肉丝）+ 早餐蛋黄牛奶，脂肪正好合适。</li>
+            <li><strong>b. 正餐低油无油菜</strong>（卤肉、轻食、清炒、水煮）：少约 20g 脂肪，需要补。</li>
+            <li><strong>c. 早餐不吃蛋黄牛奶</strong>（如 2 蛋 + 全脂奶）：少约 20g 脂肪，需要补。</li>
+          </ul>
+          <p><strong>脂肪精算</strong>：蛋黄 5g/个，全脂牛奶 10g/盒，清淡炒菜 5g/人份，重口炒菜 10g/人份，精瘦肉脂肪率 2%，一般瘦肉 5%。若算出来低于应摄入量，差额用坚果（脂肪率 50%）、蛋黄或全脂牛奶补足。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>4. 体重降低/增加后需要重新设计饮食量吗？</summary>
+        <div class="answer">
+          <p>体重增减几公斤，按每公斤碳蛋脂系数折算，总量也就变化几克到十几克，远小于日常摄入误差，<strong>不需要</strong>因为体重变化就重算。</p>
+          <p>唯一例外：减脂期体重下降 10kg 后，基础代谢下降 100–150 kcal，原热量缺口会逐渐缩小。此时若同时出现 2 周体重完全不动，全天碳水减少 30g，其他不变即可。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>5. 想吃水果怎么办？</summary>
+        <div class="answer">
+          <p>水果本质是果糖、蔗糖、葡萄糖的糖水（一根香蕉≈25g 糖，一斤西瓜≈35g 糖），不是"应该多吃的健康食品"。</p>
+          <ul>
+            <li><strong>置换主食</strong>：吃多少克糖就从主食里扣掉多少克碳水，否则碳水总量超标。</li>
+            <li><strong>不能无限置换</strong>：水果碳水约一半是果糖，果糖每天 30–50g 上限，长期多吃增加脂肪肝、高尿酸、高血脂风险。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>6. 想吃别的主食怎么办？</summary>
+        <div class="answer">
+          <p>查出该主食的碳水率做替换。例如该餐需 50g 碳水，土豆碳水率 18%，则吃 50÷18% = 277g 土豆。</p>
+          <p>常见碳水率：土豆 18%，红薯 20%，玉米（可食部分）22%，肠粉 22%，湿米线 34%，生意面 76%，藕粉 90%。</p>
+          <p><strong>不能用糖油混合物替换主食</strong>：肉包子、饼干、高脂面包（脂肪率 10%+）、煎饼、锅盔、麻团、油条——用这些凑够碳水的话脂肪早就超标。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>7. 想吃外卖怎么办？</summary>
+        <div class="answer">
+          <p>外卖可以吃，原理还是主食 + 瘦肉。选有足够瘦肉的，一份标准炒菜外卖通常凑不够 100g 瘦肉，不够就加肉或用蛋白粉/牛肉干补。</p>
+          <p>推荐关键词：跷脚牛肉、牛肉汤、黄焖鸡、酸菜鱼、蒸鸡、烤鸡、窑鸡、鸡腿、沙县。固定吃几家以便估算重量。外卖长方形米饭盒约 300–350g 米饭≈100g 碳水。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>8. 减脂期感觉饿怎么办？</summary>
+        <div class="answer">
+          <ul>
+            <li><strong>选高饱腹感主食</strong>：燕麦麸、燕麦片、米饭；偏门可选土豆（18%）、红薯（22%）。面条、米线、馒头饱腹感低。</li>
+            <li><strong>多吃蔬菜</strong>：除练后餐外，各餐先吃蔬菜。</li>
+            <li><strong>蛋白质吃足</strong>：配额已经较高，觉得饿可以超一点，不用担心热量。</li>
+            <li><strong>用零食夜宵配额垫肚子</strong>：但必须吃表格举例的食物。</li>
+            <li><strong>不要擅自加有氧</strong>：饮食已经提供足够缺口，加有氧只会更饿。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>9. 表格里的零食夜宵配额必须吃吗？</summary>
+        <div class="answer">
+          <p>配额很少（约全天 1 成碳水 + 2 成蛋白质）。没有吃夜宵的习惯就不吃，对热量影响不大，也可以把这部分蛋白质加到其他餐。</p>
+          <p>要吃就按表格举例的食物：最优是蛋白质食物，次优是乳制品、鸡蛋等碳蛋脂混合食物。<strong>禁止</strong>用糖油混合物或纯碳水当夜宵。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>10. 表格里说的蔬菜到底是哪些？</summary>
+        <div class="answer">
+          <p><strong>三类划分</strong>：</p>
+          <ul>
+            <li><strong>是主食不是蔬菜</strong>（计入碳水配额）：土豆、玉米、山药、芋头、南瓜。</li>
+            <li><strong>较高碳水率蔬菜</strong>（少吃可不计）：蒜薹、藕、笋、红萝卜。</li>
+            <li><strong>可多吃不计</strong>：叶子菜、菌菇、黄瓜、莴笋、番茄。</li>
+          </ul>
+          <p>蔬菜的作用：压制胰岛素（练后餐除外，其他餐多吃先吃）、抗饿、补充维生素矿物质（连蔬菜都吃不上可买复合维生素片）。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>11. 减脂或增肌到什么程度停止？</summary>
+        <div class="answer">
+          <p>取决于你的审美。up 主建议：</p>
+          <ul>
+            <li><strong>减脂</strong>：没有足够肌肉量就不要追求低体脂，否则只是"细狗/排骨"。减到略有线条和腹肌即可；练过 2–3 年且肌肉量充足，可做一次彻底减脂。</li>
+            <li><strong>增肌</strong>：体脂高到别人觉得你"偏胖"（而不是壮）时就要减脂，但不必减干，减到匀称或略有线条即可。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>12. 减脂需要吃放纵餐吗？</summary>
+        <div class="answer">
+          <p>不需要。本方案是生活化减脂：配额不算很少，脂肪来源是炒菜油 + 少量鸡蛋牛奶 + 瘦肉自带脂肪，吃食堂/外卖/家常伙食即可，只限制五花肉和糖油混合物。既然不痛苦，就不需要放纵餐来缓冲。</p>
+          <p>注意：<strong>在外就餐 ≠ 放纵餐</strong>。外食时桌上还是碳蛋脂，按既定模式配餐即可。原则：①至少 100g 瘦肉（20–30g 蛋白质）；②主食量按需；③脂肪来自菜油 + 瘦肉微量；④糖油混合物/五花肉少吃不吃。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>13. 体测仪数据能证明减脂或增肌吗？</summary>
+        <div class="answer">
+          <p><strong>不能</strong>。体测仪只有体重有用，骨骼肌和体脂数据都不要当真。</p>
+          <ul>
+            <li>骨骼肌算法与体重强相关，体重下降时它大概率告诉你"掉肌肉"——up 主减脂期被告知掉 8kg 肌肉，但力量没降。</li>
+            <li>体脂率测量不敏感，隔一天测一次数字都能明显变化，不可能是真的。</li>
+          </ul>
+          <p><strong>正确判断</strong>：减脂看体重、腰围、视觉变化；增肌看体重趋势 + 大项力量是否增加。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>14. 减脂必须做力量训练吗？</summary>
+        <div class="answer">
+          <p><strong>不是必须</strong>。力量训练和减脂没有直接关系——饮食已经能提供足够热量缺口。</p>
+          <p>有肌肉的人减脂需要力训 + 练后餐来减少肌肉净损失。但普通人本来就没多少肌肉，减脂目的只是体重/腰围下降、看起来瘦，没必要为了减脂去办卡请私教。将来要增肌时才必须做力训。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>15. 普通人减脂为何不需要高频有氧？</summary>
+        <div class="answer">
+          <p>热量缺口优先用饮食提供，时间成本最低，所以饮食配额压得较低但不至于很饿。</p>
+          <p>只有追求极低体脂率时，碳水已经降到很难再降，才会靠有氧继续制造缺口（健身运动员减脂后期就是这样）。普通人不会走到这一步，因此不需要高频有氧。不想减碳水的话，用加有氧来让碳水吃得多一点也可以。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>16. 有了表格后我还需要用薄荷 App 配餐吗？</summary>
+        <div class="answer">
+          <p><strong>不需要，可能起反效果</strong>。表格已经给你配好了具体食谱（食物品种 + 重量），自己再用薄荷配餐，总量和日内分配往往与设计方案冲突，等于白买方案。</p>
+          <p>薄荷 App 的用途是了解食物的碳蛋脂率，为以后自己配餐储备知识。现阶段直接按表格吃即可。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>17. 在外就餐怎么吃？</summary>
+        <div class="answer">
+          <p>外食不影响减脂，桌上摆的还是碳蛋脂。原则：</p>
+          <ol>
+            <li>主食量参考在家吃饭的体积。</li>
+            <li>瘦肉菜随便吃（确保是纯瘦肉，不是半肥半瘦），蛋白质饱腹感强，一餐 200–300g 瘦肉就会觉得费劲。</li>
+            <li>五花肉、糖油混合物基本不碰，最多尝味。</li>
+            <li>基本别喝酒（酒精 7 kcal/g）。</li>
+          </ol>
+        </div>
+      </details>
+
+      <details>
+        <summary>18. 居家/宿舍健身怎么弄？</summary>
+        <div class="answer">
+          <p><strong>非必要不建议居家</strong>：①时间成本只省了路上时间；②没有固定器械引导，新手更难上手；③配重困难——不同部位需要不同重量，"一副哑铃练全身"不现实。怕健身房被嘲笑是多虑，大家各练各的。</p>
+          <p>如果仍决定居家：</p>
+          <ul>
+            <li><strong>阻力来源</strong>：三根不同磅数弹力带 + 一根引体杆，成本 200 元内。</li>
+            <li><strong>分化方式</strong>：三分化或二分化（器械有限，不支持四五分化）。</li>
+            <li><strong>重复次数</strong>：8–12 次力竭，甚至 10–15 次。阻力不够时<strong>不要</strong>做 15 次以上的轻重量，要增加阻力。</li>
+            <li><strong>组间休息</strong>：胸背腿 2–2.5 分钟，肩臂 1.5–2 分钟。一次训练约 1 小时，20–25 组。</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-group">
+      <h3>训练计划</h3>
+      <details>
+        <summary>19. 健身房三分化训练计划</summary>
+        <div class="answer">
+          <p>计划只是参考，训练关键不在计划本身，而在动作水平。三天（背/胸/腿）可交换。</p>
+
+          <p><strong>练背日</strong>：合计 24 组，≤1.5 小时。组间：背 2–3 分钟，肩臂 1.5–2.5 分钟。</p>
+          <table>
+            <tr><th>动作</th><th>组数/次数</th><th>目标肌肉</th></tr>
+            <tr><td>引体向上 / 高位下拉 / 器械下拉 / 杠铃划船 / 单边哑铃划船 / 坐姿器械划船（选 3）</td><td>每个 4 组，8–12 次力竭</td><td>背阔肌、大圆肌、中下斜方肌</td></tr>
+            <tr><td>坐姿器械划船（窄握夹肘版）/ 蝴蝶机反向飞鸟 / 龙门架反向飞鸟 / 哑铃俯身飞鸟（选 1–2）</td><td>共 6 组，完全力竭</td><td>背阔肌、肩后束</td></tr>
+            <tr><td>曲杆短杠铃弯举 / 哑铃弯举 / 龙门架杆弯举 / 龙门架绳索弯举（选 1–2）</td><td>共 6 组，完全力竭</td><td>肱二头、肱肌</td></tr>
+          </table>
+
+          <p><strong>练胸日</strong>：合计 26 组。组间：胸 2–3 分钟，肩臂 1.5–2.5 分钟。</p>
+          <table>
+            <tr><th>动作</th><th>组数/次数</th><th>目标肌肉</th></tr>
+            <tr><td>蝴蝶机夹胸（热身）</td><td>3 组，完全力竭</td><td>胸大肌、肩前束</td></tr>
+            <tr><td>杠铃/史密斯/哑铃平板卧推 / 坐姿器械推胸（选 1）</td><td>4 组，接近力竭</td><td>胸大肌、肩前束、肱三头</td></tr>
+            <tr><td>上斜卧推（新手别做）/ 双杠臂屈伸（新手别做）/ 龙门架夹胸（选 1）</td><td>3 组，接近力竭</td><td>胸大肌、肩前束</td></tr>
+            <tr><td>坐姿哑铃/器械/史密斯推举 / 哑铃前平举（选 1–2）</td><td>共 6 组，接近力竭</td><td>肩前束、肱三头</td></tr>
+            <tr><td>哑铃侧平举 / 单边龙门架侧平举（选 1）</td><td>4 组，完全力竭</td><td>肩中束</td></tr>
+            <tr><td>龙门架直杆下压 / 绳索臂屈伸 / 过顶臂屈伸 / 平板仰卧臂屈伸（选 1）</td><td>4 组，完全力竭</td><td>肱三头</td></tr>
+          </table>
+
+          <p><strong>练腿日</strong>：合计 20 组。组间：腿 2–3 分钟（深蹲可 3–5 分钟），腹 1.5–2.5 分钟。</p>
+          <p>版本 A 主练股四头肌，版本 B 主练腘绳肌和臀大肌，轮流进行。</p>
+          <table>
+            <tr><th>版本 A（股四头）</th><th>版本 B（腘绳/臀）</th><th>组数</th></tr>
+            <tr><td>杠铃自由深蹲</td><td>罗马尼亚硬拉 / 直腿硬拉</td><td>6 组，接近力竭</td></tr>
+            <tr><td colspan="2">哈克机 / 倒蹬机 / 哑铃箭步蹲（选 1–2）</td><td>共 6 组，接近力竭</td></tr>
+            <tr><td>器械腿屈伸</td><td>器械腿弯举</td><td>—</td></tr>
+            <tr><td colspan="2">平板卷腹 / 器械卷腹 / 悬垂举腿（选 1–2）</td><td>共 8 组，完全力竭</td></tr>
+          </table>
+          <p><strong>女生练腿变化</strong>：版本 A 练 1 次、版本 B 练 2 次；练腹改为臀推/臀桥/后踢，6 组。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>20. 健身房四分化训练计划</summary>
+        <div class="answer">
+          <p>四天（背/胸/臂/腿）可交换。动作选择与三分化类似，单部位组数更多。</p>
+          <p><strong>练背日</strong> 24 组：动作选 4 个每个 4 组（引体/高位下拉/杠铃划船/单边哑铃划船/坐姿器械划船等），再加 2 个每个 4 组（反向飞鸟类）。</p>
+          <p><strong>练胸日</strong> 26 组：蝴蝶机 3 组热身 → 平板卧推类 5 组 → 上斜/龙门架夹胸 3 组 → 推举类 8 组 → 侧平举 4 组。</p>
+          <p><strong>练臂日</strong> 24 组：肱二头动作选 3 个每个 4 组；肱三头动作选 3 个每个 4 组（窄距卧推/下压/臂屈伸类）。</p>
+          <p><strong>练腿日</strong> 20 组：结构同三分化练腿日（版本 A/B 轮流）。女生变化同三分化。</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>21. 居家/宿舍健身三分化计划</summary>
+        <div class="answer">
+          <p>先看问答 18 的居家指导。三天（背/胸/腿）可交换。</p>
+
+          <p><strong>练背日</strong> 24 组：引体向上 / 弹力带或单边哑铃划船 / 坐姿弹力带划船 / 哑铃弹力带俯身飞鸟 / 哑铃弹力带弯举。组间：背 2 分钟，肩臂 1.5 分钟。</p>
+
+          <p><strong>练胸日</strong> 26 组：脚垫高俯卧撑 / 常规俯卧撑 / 平板哑铃卧推 / 哑铃推举或弹力带推举 / 窄距俯卧撑 / 弹力带臂屈伸 / 哑铃或弹力带侧平举 / 弹力带提拉。组间：胸 2 分钟，肩臂 1.5 分钟。</p>
+
+          <p><strong>练腿日</strong> 26 组：哑铃或弹力带深蹲 6 组、硬拉 6 组、箭步蹲 6 组、平板卷腹 8 组。组间：臀腿 2–3 分钟，腹 1.5 分钟。</p>
+
+          <p><strong>女生练腿变化</strong>：深蹲减 3 组、硬拉加 3 组；练腹改为弹力带臀桥 6 组。</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    数据来源：B 站视频「生活化减脂减肥」BV1794y1a7y4 的力训日 / 休息日碳水蛋白推荐表，经双线性插值扩展到任意身高体重。
+    脂肪系数默认 0.8 g/kg，可在左侧调整。常见问题整理自原视频配套问答文档（作者：B 站 好人松松）。本工具不构成医疗或营养建议。
+  </footer>
+</div>
+
+<script>
+// ===== 原始查表数据（行=体重, 列=身高）=====
+const HEIGHTS = [160, 165, 170, 175, 180, 185, 190];
+const WEIGHTS = [60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140];
+
+const TRAINING = [
+  ['2.7/1.7','2.9/1.7','-','-','-','-','-'],
+  ['2.6/1.6','2.7/1.6','2.8/1.7','-','-','-','-'],
+  ['2.5/1.5','2.6/1.5','2.7/1.6','2.8/1.6','-','-','-'],
+  ['2.4/1.4','2.5/1.4','2.6/1.5','2.7/1.5','2.8/1.6','-','-'],
+  ['2.3/1.3','2.4/1.4','2.5/1.4','2.6/1.5','2.7/1.5','2.8/1.5','-'],
+  ['2.2/1.3','2.3/1.3','2.4/1.4','2.5/1.4','2.6/1.4','2.7/1.5','2.8/1.5'],
+  ['2.2/1.2','2.2/1.3','2.3/1.3','2.4/1.3','2.5/1.4','2.6/1.4','2.7/1.4'],
+  ['2.1/1.2','2.2/1.2','2.3/1.2','2.4/1.3','2.5/1.3','2.5/1.4','2.6/1.4'],
+  ['2.0/1.1','2.1/1.2','2.2/1.2','2.3/1.2','2.4/1.3','2.5/1.3','2.6/1.3'],
+  ['2.0/1.1','2.1/1.1','2.2/1.2','2.2/1.2','2.3/1.2','2.4/1.3','2.5/1.3'],
+  ['1.9/1.1','2.0/1.1','2.1/1.1','2.2/1.2','2.3/1.2','2.3/1.2','2.4/1.2'],
+  ['1.9/1.0','2.0/1.1','2.1/1.1','2.1/1.1','2.2/1.1','2.3/1.2','2.4/1.2'],
+  ['-','1.9/1.0','2.0/1.1','2.1/1.1','2.2/1.1','2.2/1.1','2.3/1.2'],
+  ['-','-','2.0/1.0','2.0/1.1','2.1/1.1','2.2/1.1','2.2/1.1'],
+  ['-','-','-','2.0/1.0','2.1/1.1','2.1/1.1','2.2/1.1'],
+  ['-','-','-','-','2.0/1.0','2.1/1.0','2.2/1.1'],
+  ['-','-','-','-','-','2.1/1.0','2.1/1.0']
+];
+
+const REST = [
+  ['2.2/1.7','2.3/1.7','-','-','-','-','-'],
+  ['2.1/1.6','2.2/1.6','2.3/1.7','-','-','-','-'],
+  ['2.0/1.5','2.1/1.5','2.2/1.6','2.3/1.6','-','-','-'],
+  ['1.9/1.4','2.0/1.4','2.1/1.5','2.2/1.5','2.3/1.6','-','-'],
+  ['1.8/1.3','1.9/1.4','2.0/1.4','2.1/1.5','2.2/1.5','2.3/1.5','-'],
+  ['1.8/1.3','1.9/1.3','1.9/1.4','2.0/1.4','2.1/1.4','2.2/1.5','2.3/1.5'],
+  ['1.7/1.2','1.8/1.3','1.9/1.3','1.9/1.3','2.0/1.4','2.1/1.4','2.2/1.4'],
+  ['1.7/1.2','1.7/1.2','1.8/1.2','1.8/1.2','2.0/1.3','2.0/1.4','2.1/1.4'],
+  ['1.6/1.1','1.7/1.2','1.8/1.2','1.8/1.2','1.9/1.3','2.0/1.3','2.0/1.3'],
+  ['1.6/1.1','1.7/1.1','1.7/1.2','1.8/1.2','1.9/1.2','1.9/1.3','2.0/1.3'],
+  ['1.6/1.1','1.6/1.1','1.7/1.1','1.7/1.2','1.8/1.2','1.9/1.2','1.9/1.2'],
+  ['1.5/1.0','1.6/1.1','1.6/1.1','1.7/1.1','1.8/1.1','1.8/1.2','1.9/1.2'],
+  ['-','1.6/1.0','1.6/1.1','1.7/1.1','1.7/1.1','1.8/1.1','1.8/1.2'],
+  ['-','-','1.6/1.0','1.6/1.1','1.7/1.1','1.7/1.1','1.8/1.1'],
+  ['-','-','-','1.6/1.0','1.7/1.1','1.7/1.1','1.8/1.1'],
+  ['-','-','-','-','1.6/1.0','1.7/1.0','1.7/1.1'],
+  ['-','-','-','-','-','1.6/1.0','1.7/1.0']
+];
+
+// ===== 工具：双线性插值 =====
+function parseCell(str) {
+  if (str === '-') return null;
+  const [c, p] = str.split('/').map(Number);
+  return { carbs: c, protein: p };
+}
+
+function interpTable(table, h, w) {
+  // clamp 到边界
+  h = Math.max(HEIGHTS[0], Math.min(HEIGHTS[HEIGHTS.length-1], h));
+  w = Math.max(WEIGHTS[0], Math.min(WEIGHTS[WEIGHTS.length-1], w));
+
+  // 找相邻身高
+  let h1 = HEIGHTS[0], h2 = HEIGHTS[HEIGHTS.length-1];
+  for (let i = 0; i < HEIGHTS.length - 1; i++) {
+    if (h >= HEIGHTS[i] && h <= HEIGHTS[i+1]) { h1 = HEIGHTS[i]; h2 = HEIGHTS[i+1]; break; }
+  }
+  // 找相邻体重
+  let w1 = WEIGHTS[0], w2 = WEIGHTS[WEIGHTS.length-1];
+  for (let i = 0; i < WEIGHTS.length - 1; i++) {
+    if (w >= WEIGHTS[i] && w <= WEIGHTS[i+1]) { w1 = WEIGHTS[i]; w2 = WEIGHTS[i+1]; break; }
+  }
+
+  const hi1 = HEIGHTS.indexOf(h1), hi2 = HEIGHTS.indexOf(h2);
+  const wi1 = WEIGHTS.indexOf(w1), wi2 = WEIGHTS.indexOf(w2);
+
+  const c11 = parseCell(table[wi1][hi1]);
+  const c12 = parseCell(table[wi1][hi2]);
+  const c21 = parseCell(table[wi2][hi1]);
+  const c22 = parseCell(table[wi2][hi2]);
+
+  // 任一角为 null（'-'）则退化为最近非空角的单值
+  function pick() {
+    const cells = [[c11,wi1,hi1],[c12,wi1,hi2],[c21,wi2,hi1],[c22,wi2,hi2]].filter(x => x[0]);
+    if (cells.length === 0) return null;
+    // 选距离输入点最近的
+    cells.sort((a,b) => {
+      const da = Math.abs(a[1]-w) + Math.abs(a[2]-h);
+      const db = Math.abs(b[1]-w) + Math.abs(b[2]-h);
+      return da - db;
+    });
+    return cells[0][0];
+  }
+  if (!c11 || !c12 || !c21 || !c22) return pick();
+
+  const th = (h2 - h1) === 0 ? 0 : (h - h1) / (h2 - h1);
+  const tw = (w2 - w1) === 0 ? 0 : (w - w1) / (w2 - w1);
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const top = { carbs: lerp(c11.carbs, c12.carbs, th), protein: lerp(c11.protein, c12.protein, th) };
+  const bot = { carbs: lerp(c21.carbs, c22.carbs, th), protein: lerp(c21.protein, c22.protein, th) };
+  return { carbs: lerp(top.carbs, bot.carbs, tw), protein: lerp(top.protein, bot.protein, tw) };
+}
+
+// ===== 状态与 DOM =====
+const state = { dayType: 'training', muscleMass: false, cardio: false };
+const $ = id => document.getElementById(id);
+const els = {
+  height: $('height'), weight: $('weight'), fatPerKg: $('fatPerKg'),
+  dayType: $('dayType'), muscleMass: $('muscleMass'), cardio: $('cardio'),
+  carbs: $('carbs'), protein: $('protein'), fat: $('fat'), calories: $('calories'),
+  mealPlan: $('mealPlan'), warn: $('warn'), chart: $('chart')
+};
+
+let chart = null;
+function ensureChart() {
+  if (!chart && window.echarts) chart = echarts.init(els.chart);
+  return chart;
+}
+
+function compute() {
+  const h = parseFloat(els.height.value);
+  const w = parseFloat(els.weight.value);
+  const fatPerKg = parseFloat(els.fatPerKg.value);
+
+  els.warn.classList.remove('show');
+  if (!h || !w || !fatPerKg || h < 150 || h > 210 || w < 40 || w > 200 || fatPerKg < 0.3 || fatPerKg > 2) {
+    els.warn.textContent = '请输入有效的身高（150–210 cm）、体重（40–200 kg）与脂肪系数（0.3–2 g/kg）。';
+    els.warn.classList.add('show');
+    els.carbs.textContent = '—'; els.protein.textContent = '—';
+    els.fat.textContent = '—'; els.calories.textContent = '—';
+    if (chart) chart.clear();
+    return;
+  }
+
+  const table = state.dayType === 'training' ? TRAINING : REST;
+  const coeff = interpTable(table, h, w);
+  if (!coeff) {
+    els.warn.textContent = '当前身高体重超出参考表范围，无法计算。';
+    els.warn.classList.add('show');
+    return;
+  }
+
+  let carbsKg = coeff.carbs, proteinKg = coeff.protein;
+  if (state.muscleMass) { carbsKg *= 1.05; proteinKg *= 1.20; }
+  if (state.cardio) { carbsKg *= 1.20; }
+
+  const carbs = Math.round(carbsKg * w);
+  const protein = Math.round(proteinKg * w);
+  const fat = Math.round(fatPerKg * w);
+  const calories = carbs * 4 + protein * 4 + fat * 9;
+
+  els.carbs.textContent = carbs;
+  els.protein.textContent = protein;
+  els.fat.textContent = fat;
+  els.calories.textContent = calories.toLocaleString();
+
+  // 分餐建议
+  if (state.dayType === 'training') {
+    els.mealPlan.innerHTML =
+      '<strong>力训日分配建议</strong><br>碳水按 早餐 20% · 训练前 20% · 训练后 40% · 其他 20% 分配；蛋白质与脂肪平均分到各餐。' +
+      '<div class="split-bars">' +
+        splitBar('早餐', 20) + splitBar('训练前', 20) + splitBar('训练后', 40) + splitBar('其他', 20) +
+      '</div>';
+  } else {
+    els.mealPlan.innerHTML =
+      '<strong>休息日分配建议</strong><br>三大营养素平均分配至各餐，避免单次碳水过高。' +
+      '<div class="split-bars">' +
+        splitBar('餐一', 33) + splitBar('餐二', 33) + splitBar('餐三', 34) +
+      '</div>';
+  }
+
+  // 环形图
+  const c = ensureChart();
+  if (c) {
+    c.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} kcal ({d}%)' },
+      legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { fontSize: 12, color: '#6b7280' } },
+      series: [{
+        type: 'pie', radius: ['55%', '78%'], center: ['50%', '45%'],
+        avoidLabelOverlap: true, label: { show: false }, labelLine: { show: false },
+        data: [
+          { value: carbs*4, name: '碳水', itemStyle: { color: '#2563eb' } },
+          { value: protein*4, name: '蛋白质', itemStyle: { color: '#059669' } },
+          { value: fat*9, name: '脂肪', itemStyle: { color: '#d97706' } }
+        ]
+      }]
+    });
+  }
+}
+
+function splitBar(name, pct) {
+  return '<div class="split-row"><span class="name">' + name + '</span>' +
+    '<span class="bar"><div style="width:' + pct + '%"></div></span>' +
+    '<span class="pct">' + pct + '%</span></div>';
+}
+
+// ===== 事件绑定 =====
+[els.height, els.weight, els.fatPerKg].forEach(el => el.addEventListener('input', compute));
+
+els.dayType.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    els.dayType.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.dayType = btn.dataset.value;
+    compute();
+  });
+});
+
+els.muscleMass.addEventListener('click', () => {
+  state.muscleMass = !state.muscleMass;
+  els.muscleMass.classList.toggle('on', state.muscleMass);
+  compute();
+});
+els.cardio.addEventListener('click', () => {
+  state.cardio = !state.cardio;
+  els.cardio.classList.toggle('on', state.cardio);
+  compute();
+});
+
+window.addEventListener('resize', () => { if (chart) chart.resize(); });
+document.addEventListener('DOMContentLoaded', compute);
+compute();
+</script>
+</body>
+</html>
